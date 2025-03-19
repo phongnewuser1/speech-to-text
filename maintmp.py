@@ -1,10 +1,12 @@
 import pyaudio
 import wave
 from faster_whisper import WhisperModel
+import threading
 
-def test_microphone(sample_rate=16000, duration=5, output_file="test_microphone.wav"):
+def test_microphone(sample_rate=16000, output_file="test_microphone.wav"):
     """
     Ghi lại một đoạn âm thanh từ micro mặc định và lưu vào file.
+    Người dùng nhấn Enter để bắt đầu và nhấn Enter lần nữa để dừng.
     """
     # Khởi tạo PyAudio
     p = pyaudio.PyAudio()
@@ -21,14 +23,25 @@ def test_microphone(sample_rate=16000, duration=5, output_file="test_microphone.
                         input_device_index=default_device_index,
                         frames_per_buffer=1024)
 
-        print(f"🎙 Đang ghi âm từ micro mặc định trong {duration} giây...")
-
+        input("🎙 Nhấn Enter để bắt đầu ghi âm...")
+        print("🎙 Đang ghi âm... Nhấn Enter lần nữa để dừng.")
         frames = []
+        recording = True
 
-        # Ghi âm trong khoảng thời gian xác định
-        for _ in range(0, int(sample_rate / 1024 * duration)):
-            data = stream.read(1024)
-            frames.append(data)
+        # Hàm ghi âm chạy trong luồng riêng
+        def record():
+            while recording:
+                data = stream.read(1024)
+                frames.append(data)
+
+        # Bắt đầu ghi âm trong luồng riêng
+        record_thread = threading.Thread(target=record)
+        record_thread.start()
+
+        # Chờ người dùng nhấn Enter để dừng
+        input("🎙 Nhấn Enter để dừng ghi âm...")
+        recording = False
+        record_thread.join()
 
         print(f"✅ Ghi âm hoàn tất. Đang lưu vào file: {output_file}")
 
@@ -64,12 +77,22 @@ def process_audio_with_whisper(audio_path, language="vi"):
         print(f"🗣 {segment.text}")
 
 def main():
-    # Ghi âm từ micro
-    audio_file = "test_microphone.wav"
-    test_microphone(output_file=audio_file)
+    """
+    Chạy chương trình lặp lại liên tục cho đến khi người dùng ra lệnh dừng.
+    """
+    while True:
+        # Ghi âm từ micro
+        audio_file = "test_microphone.wav"
+        test_microphone(output_file=audio_file)
 
-    # Nhận diện giọng nói từ file ghi âm
-    process_audio_with_whisper(audio_file)
+        # Nhận diện giọng nói từ file ghi âm
+        process_audio_with_whisper(audio_file)
+
+        # Hỏi người dùng có muốn dừng chương trình hay không
+        stop_command = input("🔄 Nhập 'stop' để dừng chương trình hoặc nhấn Enter để tiếp tục: ").strip().lower()
+        if stop_command == 'stop':
+            print("👋 Kết thúc chương trình. Tạm biệt!")
+            break
 
 if __name__ == "__main__":
     main()
